@@ -1,0 +1,45 @@
+/* Carousel base */
+.wa-attachments.wa-carousel {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  gap: 16px;
+  padding: 8px;
+  -webkit-overflow-scrolling: touch; /* smooth scrolling on iOS */
+}
+
+/* Hide scrollbar but still allow scroll */
+.wa-attachments.wa-carousel::-webkit-scrollbar {
+  display: none;
+}
+.wa-attachments.wa-carousel {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Cards inside carousel */
+.wa-attachments.wa-carousel .wa-card {
+  flex: 0 0 auto;               /* Prevent shrinking */
+  width: 220px;                 /* Fixed card width */
+  scroll-snap-align: start;
+  background: #fff;
+  border: 1px solid #eee;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+/* Keep your existing styles */
+.wa-attachments .wa-thumb{display:block;margin-bottom:8px}
+.wa-attachments .wa-title{font-size:1rem;margin:8px 0}
+.wa-attachments .wa-price{margin-bottom:8px;font-weight:600}
+.wa-attachments .button{width:100%}
+
+.wa-carousel-wrap{position:relative}
+.wa-carousel-wrap .wa-nav{
+  position:absolute;top:50%;transform:translateY(-50%);
+  z-index:2;border:1px solid #eee;background:#fff;width:36px;height:36px;
+  border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.06);cursor:pointer
+}
+.wa-carousel-wrap .wa-prev{left:-6px}
+.wa-carousel-wrap .wa-next{right:-6px}
+@media (max-width:480px){.wa-carousel-wrap .wa-nav{display:none}}
