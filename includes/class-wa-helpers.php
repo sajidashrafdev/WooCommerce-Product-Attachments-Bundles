@@ -24,20 +24,27 @@ class WA_Helpers
 		if (empty($product_ids)) return '';
 
 		$defaults = [
-			'layout'      => 'grid', // 'grid' | 'list' | 'carousel'
-			'columns'     => 3,
-			'show_image'  => true,
-			'show_title'  => true,
-			'show_price'  => true,
-			'show_cart'   => true,
-			'image_size'  => 'woocommerce_thumbnail',
-			'gap'         => 16,
-			'class'       => '',
-			// Carousel-only:
-			'arrows'      => true,
-			'card_width'  => 220,   // px
-			'snap'        => true,
+			'layout'         => 'grid',
+			'columns'        => 3,
+			'show_image'     => true,
+			'show_title'     => true,
+			'show_price'     => true,
+			'show_cart'      => true,
+			'image_size'     => 'woocommerce_thumbnail',
+			'gap'            => 16,
+			'class'          => '',
+
+			// ↓ Add these:
+			'card_width'     => 220,
+			'arrows'         => true,
+			'snap'           => true,
+			'auto_scroll'    => true,
+			'scroll_mode'    => 'lazy', // 'lazy' or 'step'
+			'speed'          => 30,     // px/sec for lazy drift
+			'resume_delay'   => 1800,   // ms
+			'pause_on_hover' => true,
 		];
+
 		$settings = wp_parse_args($settings, $defaults);
 
 		wp_enqueue_style('wa-frontend');
@@ -146,35 +153,111 @@ class WA_Helpers
 
 		$html = ob_get_clean();
 
-		// Minimal inline JS for arrow controls (once per request)
+		// Inline JS for arrows + lazy auto-scroll (scoped, once per request)
 		static $did_inline = false;
-		if ($is_carousel && $settings['arrows'] && ! $did_inline) {
+		if ($is_carousel && ! $did_inline) {
 			$did_inline = true;
 			wp_register_script('wa-carousel-js', '', [], null, true);
 			wp_enqueue_script('wa-carousel-js');
 			wp_add_inline_script('wa-carousel-js', "
-		(function(){
-			function scrollByCard(container, dir){
-				if(!container) return;
-				var card = container.querySelector('.wa-card');
-				var delta = 300, gap = " . (int) $gap . ";
-				if(card){
-					var rect = card.getBoundingClientRect();
-					delta = rect.width + gap;
-				}
-				container.scrollBy({left: dir * delta, behavior:'smooth'});
+	(function(){
+		// Config injected from PHP
+		var SPEED           = " . (int) $settings['speed'] . ";            // px/sec
+		var RESUME_DELAY    = " . (int) $settings['resume_delay'] . ";     // ms
+		var AUTO            = " . ($settings['auto_scroll'] ? 'true' : 'false') . ";
+		var PAUSE_ON_HOVER  = " . ($settings['pause_on_hover'] ? 'true' : 'false') . ";
+		var prefersReduced  = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		var GAP             = " . (int) $gap . ";
+		var WRAP_SELECTOR   = '#" . esc_js($uid) . "';
+
+		function scrollByCard(container, dir){
+			if(!container) return;
+			var card = container.querySelector('.wa-card');
+			var delta = 300;
+			if(card){
+				var r = card.getBoundingClientRect();
+				delta = r.width + GAP;
 			}
-			document.addEventListener('click', function(e){
-				var btn = e.target.closest('.wa-nav');
-				if(!btn) return;
-				var wrap = document.querySelector(btn.getAttribute('data-target'));
-				if(!wrap) return;
-				var scroller = wrap.querySelector('.wa-attachments');
-				if(!scroller) return;
-				if(btn.classList.contains('wa-prev')) scrollByCard(scroller, -1);
-				if(btn.classList.contains('wa-next')) scrollByCard(scroller,  1);
-			});
-		})();");
+			container.scrollBy({ left: dir * delta, behavior: 'smooth' });
+		}
+
+		// Arrow buttons
+		document.addEventListener('click', function(e){
+			var btn = e.target.closest('.wa-nav');
+			if(!btn) return;
+			var wrap = document.querySelector(btn.getAttribute('data-target'));
+			if(!wrap) return;
+			var scroller = wrap.querySelector('.wa-attachments');
+			if(!scroller) return;
+			if(btn.classList.contains('wa-prev')) scrollByCard(scroller, -1);
+			if(btn.classList.contains('wa-next')) scrollByCard(scroller,  1);
+		});
+
+		// Lazy continuous auto-scroll (scoped to this instance)
+		if (AUTO && !prefersReduced) {
+			var wrap = document.querySelector(WRAP_SELECTOR);
+			if(!wrap) return;
+			var scroller = wrap.querySelector('.wa-attachments');
+			if(!scroller) return;
+
+			// prevent double-init
+			if (scroller.dataset.waAutoInit) return;
+			scroller.dataset.waAutoInit = '1';
+
+			var paused = false, resumeTimer = null, inView = true;
+
+			function pause(){
+				paused = true;
+				if(resumeTimer){ clearTimeout(resumeTimer); resumeTimer = null; }
+			}
+			function resumeSoon(){
+				if(resumeTimer){ clearTimeout(resumeTimer); }
+				resumeTimer = setTimeout(function(){ paused = false; }, RESUME_DELAY);
+			}
+
+			// Pause on hover/interaction (if enabled)
+			if (PAUSE_ON_HOVER) {
+				scroller.addEventListener('mouseenter', pause);
+				scroller.addEventListener('mouseleave', resumeSoon);
+				scroller.addEventListener('focusin',  pause);
+				scroller.addEventListener('focusout', resumeSoon);
+				scroller.addEventListener('pointerdown', pause);
+				scroller.addEventListener('pointerup',   resumeSoon);
+				scroller.addEventListener('touchstart',  pause, {passive:true});
+				scroller.addEventListener('touchend',    resumeSoon, {passive:true});
+				scroller.addEventListener('wheel',       pause, {passive:true});
+				scroller.addEventListener('scroll',      function(){ pause(); resumeSoon(); }, {passive:true});
+			}
+
+			// Pause when offscreen
+			if ('IntersectionObserver' in window) {
+				var io = new IntersectionObserver(function(entries){
+					inView = entries[0].isIntersecting;
+				}, { root: null, threshold: 0.1 });
+				io.observe(wrap);
+			}
+
+			// rAF lazy drift
+			var last = 0;
+			function loop(t){
+				if(!inView){ last = t; requestAnimationFrame(loop); return; }
+				if(paused){  last = t; requestAnimationFrame(loop); return; }
+				if(!last) last = t;
+				var dt = (t - last) / 1000; // seconds
+				last = t;
+
+				scroller.scrollLeft += SPEED * dt;
+
+				// loop back at the end
+				if (scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 1) {
+					scroller.scrollLeft = 0;
+				}
+				requestAnimationFrame(loop);
+			}
+			requestAnimationFrame(loop);
+		}
+	})();
+	");
 		}
 
 		return $html;
