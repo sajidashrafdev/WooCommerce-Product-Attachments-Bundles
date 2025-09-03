@@ -84,4 +84,4 @@ This plugin is licensed under the **GPL v2 or later**.
 
 ## 👨‍💻 Credits
 
-Developed and maintained by **Sajid Ashraf**.  
+Developed and maintained by **Ahsan Riaz & Sajid Ashraf**.  
