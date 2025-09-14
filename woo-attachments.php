@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: WooCommerce Product Attachments & Bundles
+ * Plugin Name: Woo Attachments (Linked Product Attachments)
  * Description: Add "Attachments" (other WooCommerce products) to a product and display them anywhere via Elementor widget or shortcode.
- * Author: Sajid Ashraf
- * Version: 1.0.0
+ * Author: Your Name
+ * Version: 1.0.3
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: woo-attachments
